@@ -10,12 +10,14 @@
   "dependencies": {
     "@vercel/mcp-adapter": "0.8.2",
     "next": "15.2.4",
+    "openai": "^5.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "redis": "^4.7.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "typescript": "^5"
