@@ -10,7 +10,7 @@ This sample app logs the user question and the assistant respond to Inkeep analy
 
 ## Environment variables
 
-- You need to set INKEEP_API_KEY. If you don't have one, create one in your Inkeep portal. See more info related to this in [our documentation](https://docs.inkeep.com/analytics-api/authentication#get-an-api-key)
+- You need to set INKEEP_API_KEY. If you don't have one, create one in your Inkeep portal. See more info related in [our documentation](https://docs.inkeep.com/analytics-api/authentication#get-an-api-key)
 - You can optionally set INKEEP_API_BASE_URL (defaults to 'https://api.inkeep.com/v1')
 
 ## Notes for running on Vercel
