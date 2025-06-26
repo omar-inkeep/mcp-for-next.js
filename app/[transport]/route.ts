@@ -2,6 +2,8 @@ import { createMcpHandler } from '@vercel/mcp-adapter';
 import { OpenAI } from 'openai';
 import { z } from 'zod';
 import { zodResponseFormat } from 'openai/helpers/zod.mjs';
+import { InkeepAnalytics } from '@inkeep/inkeep-analytics';
+import type { CreateOpenAIConversation, Messages, UserProperties } from '@inkeep/inkeep-analytics/models/components';
 
 // https://docs.inkeep.com/ai-api/rag-mode/openai-sdk
 const InkeepRAGDocumentSchema = z
@@ -9,11 +11,11 @@ const InkeepRAGDocumentSchema = z
     // anthropic fields citation types
     type: z.string(),
     source: z.record(z.any()),
-    title: z.string().optional(),
-    context: z.string().optional(),
+    title: z.string().nullish(),
+    context: z.string().nullish(),
     // inkeep specific fields
-    record_type: z.string().optional(),
-    url: z.string().optional(),
+    record_type: z.string().nullish(),
+    url: z.string().nullish(),
   })
   .passthrough();
 
@@ -23,6 +25,38 @@ const InkeepRAGResponseSchema = z
   })
   .passthrough();
 
+async function logToInkeepAnalytics({
+  messagesToLogToAnalytics,
+  properties,
+  userProperties,
+}: {
+  messagesToLogToAnalytics: Messages[];
+  properties?: { [k: string]: any } | null | undefined;
+  userProperties?: UserProperties | null | undefined;
+}): Promise<void> {
+  try {
+    const apiIntegrationKey = process.env.INKEEP_API_KEY;
+
+    const inkeepAnalytics = new InkeepAnalytics({ apiIntegrationKey });
+
+    const logConversationPayload: CreateOpenAIConversation = {
+      type: 'openai',
+      messages: messagesToLogToAnalytics,
+      userProperties,
+      properties,
+    };
+
+    await inkeepAnalytics.conversations.log(
+      {
+        apiIntegrationKey,
+      },
+      logConversationPayload,
+    );
+  } catch (err) {
+    console.error('Error logging conversation', err);
+  }
+}
+
 const handler = createMcpHandler(
   async server => {
     // QA tool
@@ -30,7 +64,6 @@ const handler = createMcpHandler(
     const INKEEP_PRODUCT_NAME = 'Inkeep';
 
     // Create tool names and descriptions with parameters
- 
     const qaToolName = `ask-question-about-${INKEEP_PRODUCT_SLUG}`;
     const qaToolDescription = `Use this tool to ask a question about ${INKEEP_PRODUCT_NAME} to an AI Support Agent that is knowledgeable about ${INKEEP_PRODUCT_NAME}. Use this tool to ask specific troubleshooting, feature capability, or conceptual questions. Be specific and provide the minimum context needed to address your question in full`;
 
@@ -39,7 +72,7 @@ const handler = createMcpHandler(
 
     if (!process.env.INKEEP_API_KEY) return { content: [] };
 
-    const openai = new OpenAI({ baseURL: process.env.INKEEP_API_BASE_URL, apiKey: process.env.INKEEP_API_KEY });
+    const openai = new OpenAI({ baseURL: process.env.INKEEP_API_BASE_URL || 'https://api.inkeep.com/v1', apiKey: process.env.INKEEP_API_KEY });
 
     server.tool(
       qaToolName,
@@ -50,7 +83,7 @@ const handler = createMcpHandler(
         readOnlyHint: true,
         openWorldHint: true,
       },
-      async ({ question }) => {
+      async ({ question }: { question: string }) => {
         try {
           const qaModel = 'inkeep-qa-expert';
 
@@ -62,6 +95,13 @@ const handler = createMcpHandler(
           const qaResponse = response.choices?.[0]?.message?.content;
 
           if (qaResponse) {
+            await logToInkeepAnalytics({
+              messagesToLogToAnalytics: [
+                { role: 'user', content: question },
+                { role: 'assistant', content: qaResponse },
+              ],
+            });
+
             return {
               content: [
                 {
@@ -91,7 +131,7 @@ const handler = createMcpHandler(
         readOnlyHint: true,
         openWorldHint: true,
       },
-      async ({ query }) => {
+      async ({ query }: { query: string }) => {
         try {
           const ragModel = 'inkeep-rag';
 
